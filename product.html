@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustChain Pro | Anti-Counterfeit</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #0f172a;
+            --light: #f8fafc;
+        }
+
+        body { font-family: 'Inter', sans-serif; background: var(--light); margin: 0; color: var(--dark); }
+        .glass-nav { background: var(--dark); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        .container { max-width: 900px; margin: 30px auto; padding: 20px; }
+        .card { background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); margin-bottom: 25px; }
+        
+        .tab-group { display: flex; background: #e2e8f0; padding: 5px; border-radius: 12px; margin-bottom: 25px; }
+        .tab-btn { flex: 1; border: none; padding: 12px; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.3s; color: #64748b; }
+        .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+
+        .input-box { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1rem; transition: 0.3s; box-sizing: border-box; }
+        .input-box:focus { border-color: var(--primary); outline: none; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.3s; margin-top: 10px; }
+        .btn-primary { background: var(--primary); }
+        
+        .ledger-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .ledger-table th { text-align: left; padding: 15px; background: #f1f5f9; }
+        .ledger-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; }
+
+        .analysis-result { display: none; padding: 25px; border-radius: 15px; margin-top: 20px; }
+        .result-real { background: #ecfdf5; border: 2px solid var(--success); }
+        .result-fake { background: #fef2f2; border: 2px solid var(--danger); }
+        .result-expired { background: #fffbeb; border: 2px solid var(--warning); }
+        
+        .code-output { text-align: center; margin-top: 20px; display: none; border: 2px dashed #cbd5e1; padding: 20px; border-radius: 15px; }
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; }
+    </style>
+</head>
+<body>
+
+<div class="glass-nav">
+    <div style="font-size: 1.5rem;">??? Trust<b>Chain</b> Pro</div>
+    <div id="clock" style="font-size: 0.9rem; opacity: 0.7;"></div>
+</div>
+
+<div class="container">
+    <div class="tab-group">
+        <button id="adminTab" class="tab-btn active" onclick="switchTab('admin')">Admin Ledger</button>
+        <button id="userTab" class="tab-btn" onclick="switchTab('user')">User Auth (Scan)</button>
+    </div>
+
+    <div id="adminPanel">
+        <div class="card">
+            <h2 style="margin-top:0">Register New Product</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <input type="text" id="pName" class="input-box" placeholder="Product Name">
+                <input type="text" id="pID" class="input-box" placeholder="Serial ID (Numeric for Barcode)">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <input type="text" id="pBrand" class="input-box" placeholder="Brand Name">
+                <div style="display:flex; flex-direction:column;">
+                    <label style="font-size: 0.8rem; color: #64748b;">Expiry Date:</label>
+                    <input type="date" id="pExpiry" class="input-box">
+                </div>
+            </div>
+            <textarea id="pDesc" class="input-box" placeholder="Description" rows="2"></textarea>
+            <button class="btn btn-primary" onclick="mintProduct()">Mint & Generate Codes</button>
+            
+            <div id="codeDisplay" class="code-output">
+                <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px;">
+                    <div>
+                        <p><b>QR Code</b></p>
+                        <div id="qrcode"></div>
+                    </div>
+                    <div>
+                        <p><b>Barcode</b></p>
+                        <svg id="barcode"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Blockchain Records</h3>
+            <div style="overflow-x: auto;">
+                <table class="ledger-table">
+                    <thead>
+                        <tr>
+                            <th>Serial ID</th>
+                            <th>Product</th>
+                            <th>Expiry</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ledgerBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="userPanel" style="display: none;">
+        <div class="card">
+            <h2>Scan QR or Barcode</h2>
+            <div id="reader"></div>
+            <div style="margin: 20px 0; text-align: center; color: #64748b;">— OR MANUAL ENTRY —</div>
+            <input type="text" id="userIn" class="input-box" placeholder="Enter Serial ID">
+            <button class="btn" style="background: var(--dark);" onclick="verifyProduct(document.getElementById('userIn').value)">Verify Now</button>
+
+            <div id="analysisBox" class="analysis-result">
+                <h2 id="resTitle" style="margin:0"></h2>
+                <div id="resDetails" style="margin-top:15px;"></div>
+                <div id="resHash" style="margin-top: 15px; font-family: monospace; font-size: 0.7rem; color: #64748b;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let blockchain = JSON.parse(localStorage.getItem('trustchain_db')) || [];
+
+    function switchTab(mode) {
+        document.getElementById('adminPanel').style.display = mode === 'admin' ? 'block' : 'none';
+        document.getElementById('userPanel').style.display = mode === 'user' ? 'block' : 'none';
+        document.getElementById('adminTab').classList.toggle('active', mode === 'admin');
+        document.getElementById('userTab').classList.toggle('active', mode === 'user');
+        if(mode === 'user') startScanner();
+    }
+
+    function mintProduct() {
+        const name = document.getElementById('pName').value;
+        const id = document.getElementById('pID').value;
+        const brand = document.getElementById('pBrand').value;
+        const expiry = document.getElementById('pExpiry').value;
+        const desc = document.getElementById('pDesc').value;
+
+        if(!name || !id || !expiry) return alert("Please fill Name, ID, and Expiry Date!");
+
+        const productData = {
+            id, name, brand, expiry, desc,
+            timestamp: new Date().toLocaleString(),
+            hash: "0x" + Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10)
+        };
+
+        blockchain.push(productData);
+        localStorage.setItem('trustchain_db', JSON.stringify(blockchain));
+        renderLedger();
+        
+        // Show Codes
+        document.getElementById('codeDisplay').style.display = 'block';
+        
+        // Generate QR
+        document.getElementById('qrcode').innerHTML = "";
+        new QRCode(document.getElementById('qrcode'), { text: id, width: 120, height: 120 });
+        
+        // Generate Barcode
+        JsBarcode("#barcode", id, { format: "CODE128", width: 2, height: 50, displayValue: true });
+        
+        alert("Product Securely Added to Ledger!");
+    }
+
+    function renderLedger() {
+        document.getElementById('ledgerBody').innerHTML = blockchain.map(p => `
+            <tr>
+                <td><b>${p.id}</b></td>
+                <td>${p.name}</td>
+                <td>${p.expiry}</td>
+                <td><span style="color:var(--success)">? Active</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function verifyProduct(id) {
+        const box = document.getElementById('analysisBox');
+        const title = document.getElementById('resTitle');
+        const details = document.getElementById('resDetails');
+        const hash = document.getElementById('resHash');
+
+        box.style.display = 'block';
+        const p = blockchain.find(x => x.id === id);
+
+        if(p) {
+            const today = new Date();
+            const expDate = new Date(p.expiry);
+            const isExpired = expDate < today;
+
+            if(isExpired) {
+                box.className = "analysis-result result-expired";
+                title.innerText = "?? EXPIRED PRODUCT";
+                title.style.color = "var(--warning)";
+            } else {
+                box.className = "analysis-result result-real";
+                title.innerText = "? AUTHENTIC PRODUCT";
+                title.style.color = "var(--success)";
+            }
+
+            details.innerHTML = `
+                <p><b>Product:</b> ${p.name}</p>
+                <p><b>Manufacturer:</b> ${p.brand}</p>
+                <p><b>Expiry Date:</b> ${p.expiry} ${isExpired ? '<b style="color:red">(EXPIRED)</b>' : ''}</p>
+                <p><b>Registered On:</b> ${p.timestamp}</p>
+                <p><b>Description:</b> ${p.desc}</p>
+            `;
+            hash.innerText = "Block Hash: " + p.hash;
+        } else {
+            box.className = "analysis-result result-fake";
+            title.innerText = "? COUNTERFEIT ALERT";
+            title.style.color = "var(--danger)";
+            details.innerHTML = `<p>This Serial ID was not found in our blockchain ledger. High risk of forgery.</p>`;
+            hash.innerText = "Status: No Block Found";
+        }
+    }
+
+    let scanner;
+    function startScanner() {
+        if(scanner) scanner.clear();
+        scanner = new Html5QrcodeScanner("reader", { 
+            fps: 15, 
+            qrbox: {width: 250, height: 150},
+            formatsToSupport: [ 
+                Html5QrcodeSupportedFormats.QR_CODE, 
+                Html5QrcodeSupportedFormats.CODE_128, 
+                Html5QrcodeSupportedFormats.EAN_13 
+            ]
+        });
+        scanner.render((txt) => {
+            document.getElementById('userIn').value = txt;
+            verifyProduct(txt);
+            scanner.clear();
+        });
+    }
+
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleString(); }, 1000);
+    renderLedger();
+</script>
+</body>
+</html>
